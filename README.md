@@ -1,7 +1,7 @@
 # FitPulse-Event-Driven-Fitness-AI-Telemetry-Platform
 
 
-A **microservices-based fitness tracking application** built with Spring Boot, Spring Cloud, React, MongoDB, PostgreSQL, RabbitMQ, and Google Gemini AI.
+A **microservices-based fitness tracking application** built with Spring Boot, Spring Cloud, React, MongoDB, MySQL, RabbitMQ, and Google Gemini AI.
 
 The application provides JWT-based authentication, fitness activity tracking, and AI-powered fitness recommendations using an event-driven architecture.
 
@@ -17,9 +17,14 @@ The application provides JWT-based authentication, fitness activity tracking, an
 * API Gateway with centralized JWT validation
 * Service discovery using Eureka
 * Centralized configuration using Spring Cloud Config
-* PostgreSQL for user data
+* MySQL for user data
 * MongoDB for activities and recommendations
 * React frontend with Redux Toolkit
+* Per-user authorization: users can only read their own activities, recommendations and profile
+* RabbitMQ listener retries with exponential backoff, then dead-letters failed messages to `activity.dlq`
+* Idempotent AI consumer (a redelivered message never creates a duplicate recommendation)
+* Request validation and consistent JSON error responses (400 / 403 / 404 / 503)
+* One-command run with Docker Compose, plus unit tests and a GitHub Actions CI pipeline
 
 ---
 
@@ -46,7 +51,7 @@ API Gateway
   ↓
 User Service
   ↓
-PostgreSQL
+MySQL
   ↓
 JWT returned to client
 ```
@@ -105,7 +110,7 @@ AI processing is asynchronous, so creating an activity does not have to wait for
 
 ### Databases & AI
 
-* PostgreSQL
+* MySQL
 * MongoDB
 * RabbitMQ
 * Google Gemini API
@@ -123,6 +128,9 @@ FitPulse/
 ├── activityservice/
 ├── aiservice/
 ├── fitness-app-frontend/
+├── docker-compose.yml
+├── .env.example
+├── .github/workflows/ci.yml
 └── README.md
 ```
 
@@ -150,46 +158,18 @@ Authorization: Bearer <JWT>
 
 ## ⚙️ Getting Started
 
-### Prerequisites
+### Option A — Docker Compose (recommended)
 
-* JDK 23
-* Maven
-* Node.js
-* PostgreSQL
-* MongoDB
-* RabbitMQ
-* Google Gemini API Key
-
-### 1. Clone
+Requires Docker only.
 
 ```bash
-git clone <repository-url>
-cd FitPulse
+cp .env.example .env        # then edit JWT_SECRET, DB_PASSWORD, GEMINI_API_URL, GEMINI_API_KEY
+docker compose up --build
 ```
 
-### 2. Configure
+This starts MySQL (host port `3307`), MongoDB, RabbitMQ (management UI on `:15672`), Eureka, Config Server, the three services and the gateway on `:8080`. Services that start before the Config Server is ready exit and are restarted automatically by Docker.
 
-Configure PostgreSQL, MongoDB, RabbitMQ, JWT secret, and Gemini API credentials in the application configuration/environment variables.
-
-### 3. Start Services
-
-Start in this order:
-
-```text
-Eureka
-↓
-Config Server
-↓
-User Service
-Activity Service
-AI Service
-↓
-API Gateway
-↓
-React Frontend
-```
-
-### 4. Start Frontend
+Then run the frontend:
 
 ```bash
 cd fitness-app-frontend
@@ -197,38 +177,48 @@ npm install
 npm run dev
 ```
 
-Frontend:
+### Option B — Run locally
 
-```text
-http://localhost:5173
-```
+Prerequisites: JDK 23, Node.js, MySQL 8, MongoDB, RabbitMQ, a Gemini API key.
 
-Gateway:
+Set these environment variables for the Config Server and each service: `JWT_SECRET` (32+ chars), `DB_PASSWORD`, `GEMINI_API_URL` (without the key), `GEMINI_API_KEY`.
 
-```text
-http://localhost:8080
-```
+Start in this order (each with `./mvnw spring-boot:run`): Eureka → Config Server → User / Activity / AI services → API Gateway → frontend.
+
+> The Config Server import is mandatory, so start it before the other services.
 
 ---
 
-## 🔐 Security
+## 🧪 Tests
 
-* Passwords are hashed using BCrypt.
-* JWTs are signed using HMAC-SHA256.
-* API Gateway validates JWTs before forwarding protected requests.
-* User identity is propagated using `X-User-ID`.
-* Sensitive credentials should be supplied through environment variables in production.
+```bash
+cd gateway && ./mvnw test
+cd userservice && ./mvnw test
+cd activityservice && ./mvnw test
+cd aiservice && ./mvnw test
+```
+
+Unit tests (JUnit 5 + Mockito) cover:
+
+* Gateway JWT filter — missing, malformed, expired and wrongly-signed tokens are rejected with 401; a valid token forwards `X-User-ID`; a spoofed `X-User-ID` header is overwritten
+* User service — registration hashes the password with BCrypt, duplicate emails are rejected, login succeeds/fails correctly
+* Activity service — validates the user, saves and publishes the event, survives a broker outage, enforces ownership
+* AI service — Gemini response parsing with fallback on malformed output, idempotent message listener, failures propagate so RabbitMQ retries and dead-letters, ownership checks on recommendations
+
+CI (GitHub Actions) runs these tests and builds the frontend on every push and pull request.
 
 ---
 
-## 📌 Future Improvements
+## 🛡️ Reliability & Security Notes
 
-* Refresh token support
-* Role-based authorization
-* Activity ownership validation
-* RabbitMQ retry/dead-letter queues
-* Resilience4j circuit breakers
-* Centralized logging and monitoring
-* Docker/Kubernetes deployment
-* Automated integration tests
+* **Authorization:** the gateway validates the JWT and sets `X-User-ID` itself (a client-supplied value is overwritten). Downstream services compare it to the owner of the requested resource and return `403` otherwise.
+* **Failed AI jobs:** the AI listener retries 3 times (2s, 4s backoff). Messages that still fail are routed to the dead-letter queue `activity.dlq` for inspection.
+* **Gemini:** calls time out after 30 seconds, and the API key is sent in the `x-goog-api-key` header instead of the URL.
+* **Secrets:** all secrets come from environment variables; `.env` is git-ignored.
 
+### Known limitations
+
+* If RabbitMQ is down at the moment an activity is created, the activity is saved but no event is published, so it will not get an AI recommendation. A transactional outbox would fix this.
+* Services trust the gateway's `X-User-ID` header, so they must not be exposed publicly (in Docker Compose only the gateway and infrastructure ports are meant to be used).
+* RabbitMQ uses the default `guest` account, which is fine for local development only.
+* The frontend is not containerized, and there are no integration tests against real databases yet.

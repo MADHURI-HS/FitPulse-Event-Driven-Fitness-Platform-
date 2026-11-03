@@ -1,0 +1,106 @@
+# One command to run the whole backend:  docker compose up --build
+# The React frontend runs separately:    cd fitness-app-frontend && npm install && npm run dev
+
+x-service-env: &service-env
+  CONFIG_SERVER_URL: http://configserver:8888
+  EUREKA_URL: http://eureka:8761/eureka/
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  RABBITMQ_HOST: rabbitmq
+  ACTIVITY_MONGO_URI: mongodb://mongo:27017/fitnessactivity
+  AI_MONGO_URI: mongodb://mongo:27017/fitnessrecommendation
+  DB_URL: "jdbc:mysql://mysql:3306/fitness_user_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+  DB_USERNAME: fitpulse
+  DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+  GEMINI_API_URL: ${GEMINI_API_URL:-http://localhost}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-not-set}
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: fitness_user_db
+      MYSQL_USER: fitpulse
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes: [mysqldata:/var/lib/mysql]
+    # Host port 3307 so it does not clash with a MySQL you may already run on 3306
+    ports: ["3307:3306"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  mongo:
+    image: mongo:7
+    volumes: [mongodata:/data/db]
+    ports: ["27017:27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  eureka:
+    build: ./eureka
+    ports: ["8761:8761"]
+
+  configserver:
+    build: ./configserver
+    ports: ["8888:8888"]
+    environment: *service-env
+
+  # The services below import config from configserver (mandatory import). If it is not ready
+  # yet they exit and Docker restarts them until it is.
+  userservice:
+    build: ./userservice
+    environment: *service-env
+    depends_on:
+      mysql: {condition: service_healthy}
+      configserver: {condition: service_started}
+      eureka: {condition: service_started}
+    restart: on-failure
+
+  activityservice:
+    build: ./activityservice
+    environment: *service-env
+    depends_on:
+      mongo: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      configserver: {condition: service_started}
+      eureka: {condition: service_started}
+    restart: on-failure
+
+  aiservice:
+    build: ./aiservice
+    environment: *service-env
+    depends_on:
+      mongo: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      configserver: {condition: service_started}
+      eureka: {condition: service_started}
+    restart: on-failure
+
+  gateway:
+    build: ./gateway
+    ports: ["8080:8080"]
+    environment: *service-env
+    depends_on:
+      configserver: {condition: service_started}
+      eureka: {condition: service_started}
+    restart: on-failure
+
+volumes:
+  mysqldata:
+  mongodata:

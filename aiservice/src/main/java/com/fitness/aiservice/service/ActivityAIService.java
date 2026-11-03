@@ -71,7 +71,7 @@ public class ActivityAIService {
                     .build();
             
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Could not parse Gemini response for activity {}; using default recommendation", activity.getId(), e);
             return createDefaultRecommendation(activity);
         }
     }

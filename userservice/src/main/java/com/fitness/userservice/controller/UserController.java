@@ -18,8 +18,8 @@ public class UserController {
 
     private UserService userService;
 
-    // Public - no token required. The gateway's SecurityConfig explicitly
-    // permits this path.
+    // Public - no token required. The gateway's JwtAuthenticationFilter
+    // lets this path through without a token.
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));
@@ -34,7 +34,12 @@ public class UserController {
     // Protected - reached only after the gateway validates the JWT and
     // forwards the caller's id via X-User-ID.
     @GetMapping("/{userId}")
-    public ResponseEntity<UserResponse> getUserProfile(@PathVariable String userId) {
+    public ResponseEntity<UserResponse> getUserProfile(@PathVariable String userId,
+                                                       @RequestHeader("X-User-ID") String callerId) {
+        // Users may only read their own profile.
+        if (!userId.equals(callerId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return ResponseEntity.ok(userService.getUserProfile(userId));
     }
 

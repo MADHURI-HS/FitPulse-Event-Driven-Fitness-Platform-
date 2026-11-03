@@ -3,6 +3,8 @@ package com.fitness.activityservice.service;
 import com.fitness.activityservice.ActivityRepository;
 import com.fitness.activityservice.dto.ActivityRequest;
 import com.fitness.activityservice.dto.ActivityResponse;
+import com.fitness.activityservice.exception.ForbiddenException;
+import com.fitness.activityservice.exception.ResourceNotFoundException;
 import com.fitness.activityservice.model.Activity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +34,7 @@ public class ActivityService {
 
         boolean isValidUser = userValidationService.validateUser(request.getUserId());
         if (!isValidUser) {
-            throw new RuntimeException("Invalid User: " + request.getUserId());
+            throw new IllegalArgumentException("Invalid user: " + request.getUserId());
         }
 
         Activity activity = Activity.builder()
@@ -71,15 +73,18 @@ public class ActivityService {
     }
 
     public List<ActivityResponse> getUserActivities(String userId) {
-        List<Activity> activities = activityRepository.findByUserId(userId);
+        List<Activity> activities = activityRepository.findByUserIdOrderByStartTimeDesc(userId);
         return activities.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
-    public ActivityResponse getActivityById(String activityId) {
-        return activityRepository.findById(activityId)
-                .map(this::mapToResponse)
-                .orElseThrow(() -> new RuntimeException("Activity not found with id: " + activityId));
+    public ActivityResponse getActivityById(String activityId, String userId) {
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Activity not found with id: " + activityId));
+        if (!activity.getUserId().equals(userId)) {
+            throw new ForbiddenException("You do not have access to this activity");
+        }
+        return mapToResponse(activity);
     }
 }

@@ -4,20 +4,28 @@ server:
 spring:
   data:
     mongodb:
-      uri: mongodb://localhost:27017/fitnessrecommendation
+      uri: ${AI_MONGO_URI:mongodb://localhost:27017/fitnessrecommendation}
       database: fitnessrecommendation
+      auto-index-creation: true
   rabbitmq:
-    host: localhost
+    host: ${RABBITMQ_HOST:localhost}
     port: 5672
-    username: guest
-    password: guest
-
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        # After the retries below are exhausted the message goes to the dead-letter queue (activity.dlq)
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 2s
+          multiplier: 2
+          max-attempts: 3
 
 eureka:
   client:
     serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
-
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
 rabbitmq:
   exchange:
@@ -27,8 +35,8 @@ rabbitmq:
   routing:
     key: activity.tracking
 
-
 gemini:
   api:
+    # URL WITHOUT the key, e.g. https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent
     url: ${GEMINI_API_URL}
     key: ${GEMINI_API_KEY}

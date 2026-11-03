@@ -1,6 +1,7 @@
 package com.fitness.userservice.service;
 
 import com.fitness.userservice.dto.AuthResponse;
+import com.fitness.userservice.exception.ResourceNotFoundException;
 import com.fitness.userservice.dto.LoginRequest;
 import com.fitness.userservice.dto.RegisterRequest;
 import com.fitness.userservice.dto.UserResponse;
@@ -58,7 +59,7 @@ public class UserService {
 
     public UserResponse getUserProfile(String userId) {
         User user = repository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User Not Found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         UserResponse userResponse = new UserResponse();
         userResponse.setId(user.getId());

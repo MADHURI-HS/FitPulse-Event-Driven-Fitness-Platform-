@@ -25,7 +25,7 @@ server:
 eureka:
   client:
     serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
 # Shared HMAC secret used to validate JWTs issued by userservice.
 # Must match user-service.yml's jwt.secret exactly.

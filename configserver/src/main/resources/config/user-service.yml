@@ -3,18 +3,17 @@ server:
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/fitness_user_db}
-    username: ${DB_USERNAME:postgres}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/fitness_user_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 eureka:
   client:
     serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
 # Shared HMAC secret used to sign JWTs on register/login.
 # Must match api-gateway.yml's jwt.secret exactly - the gateway validates

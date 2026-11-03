@@ -16,10 +16,20 @@ public class ActivityMessageListener {
     private final ActivityAIService aiService;
     private final RecommendationRepository recommendationRepository;
 
-    @RabbitListener(queues = "activity.queue")
+    /**
+     * If this throws (e.g. Gemini is down), the listener retries with backoff (see ai-service.yml)
+     * and then dead-letters the message to activity.dlq.
+     */
+    @RabbitListener(queues = "${rabbitmq.queue.name}")
     public void processActivity(Activity activity) {
         log.info("Received activity for processing: {}", activity.getId());
-//        log.info("Generated Recommendation: {}", aiService.generateRecommendation(activity));
+
+        // RabbitMQ is at-least-once: a redelivered message must not create a second recommendation.
+        if (recommendationRepository.existsByActivityId(activity.getId())) {
+            log.info("Recommendation already exists for activity {} - skipping duplicate", activity.getId());
+            return;
+        }
+
         Recommendation recommendation = aiService.generateRecommendation(activity);
         recommendationRepository.save(recommendation);
     }
