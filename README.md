@@ -1,3 +1,5 @@
+  ![CI](https://github.com/MADHURI-HS/FitPulse-Event-Driven-Fitness-Platform-/actions/workflows/ci.yml/badge.svg)
+
 # FitPulse-Event-Driven-Fitness-AI-Telemetry-Platform
 
 
