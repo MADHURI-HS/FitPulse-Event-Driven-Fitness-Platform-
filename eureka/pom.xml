@@ -12,7 +12,7 @@
 	<artifactId>eureka</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>eureka</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Eureka service discovery server for the FitPulse services</description>
 	<url/>
 	<licenses>
 		<license/>

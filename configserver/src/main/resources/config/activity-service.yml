@@ -9,8 +9,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: 5672
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    # Credentials are not set here (Spring defaults to guest/guest for local development).
+    # Override with SPRING_RABBITMQ_USERNAME / SPRING_RABBITMQ_PASSWORD in the service's environment.
 
 server:
   port: 8082

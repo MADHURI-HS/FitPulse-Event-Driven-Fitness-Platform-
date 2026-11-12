@@ -5,7 +5,10 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/fitness_user_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD}
+    # No password here on purpose. The Config Server resolves ${...} placeholders from its own
+    # environment and serves the result over HTTP, so a secret written in this file would be
+    # readable at /user-service/default. userservice reads SPRING_DATASOURCE_PASSWORD from its
+    # own environment instead.
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,9 +18,7 @@ eureka:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
-# Shared HMAC secret used to sign JWTs on register/login.
-# Must match api-gateway.yml's jwt.secret exactly - the gateway validates
-# tokens signed here.
 jwt:
-  secret: ${JWT_SECRET}
+  # jwt.secret is intentionally absent: userservice reads it from its own JWT_SECRET environment
+  # variable (it must be identical to the gateway's).
   expiration-ms: 86400000 # 24 hours

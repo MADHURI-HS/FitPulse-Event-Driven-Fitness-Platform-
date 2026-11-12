@@ -1,7 +1,10 @@
 # One command to run the whole backend:  docker compose up --build
 # The React frontend runs separately:    cd fitness-app-frontend && npm install && npm run dev
 
-x-service-env: &service-env
+# Non-secret settings only. The Config Server resolves ${...} placeholders in its config/*.yml from
+# ITS OWN environment and serves the result without authentication, so it must never receive
+# secrets. Each service gets only the secrets it needs, below, in its own environment.
+x-public-env: &public-env
   CONFIG_SERVER_URL: http://configserver:8888
   EUREKA_URL: http://eureka:8761/eureka/
   EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
@@ -10,10 +13,6 @@ x-service-env: &service-env
   AI_MONGO_URI: mongodb://mongo:27017/fitnessrecommendation
   DB_URL: "jdbc:mysql://mysql:3306/fitness_user_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
   DB_USERNAME: fitpulse
-  DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
-  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
-  GEMINI_API_URL: ${GEMINI_API_URL:-http://localhost}
-  GEMINI_API_KEY: ${GEMINI_API_KEY:-not-set}
 
 services:
   mysql:
@@ -56,16 +55,19 @@ services:
     build: ./eureka
     ports: ["8761:8761"]
 
+  # Internal only: deliberately NOT published to the host (no `ports:`). It has no authentication.
   configserver:
     build: ./configserver
-    ports: ["8888:8888"]
-    environment: *service-env
+    environment: *public-env
 
   # The services below import config from configserver (mandatory import). If it is not ready
   # yet they exit and Docker restarts them until it is.
   userservice:
     build: ./userservice
-    environment: *service-env
+    environment:
+      <<: *public-env
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
     depends_on:
       mysql: {condition: service_healthy}
       configserver: {condition: service_started}
@@ -74,7 +76,7 @@ services:
 
   activityservice:
     build: ./activityservice
-    environment: *service-env
+    environment: *public-env
     depends_on:
       mongo: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}
@@ -84,7 +86,10 @@ services:
 
   aiservice:
     build: ./aiservice
-    environment: *service-env
+    environment:
+      <<: *public-env
+      GEMINI_API_URL: ${GEMINI_API_URL:-http://localhost}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-not-set}
     depends_on:
       mongo: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}
@@ -95,7 +100,9 @@ services:
   gateway:
     build: ./gateway
     ports: ["8080:8080"]
-    environment: *service-env
+    environment:
+      <<: *public-env
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
     depends_on:
       configserver: {condition: service_started}
       eureka: {condition: service_started}

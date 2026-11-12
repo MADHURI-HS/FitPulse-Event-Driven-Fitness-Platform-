@@ -8,7 +8,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -55,5 +57,16 @@ class ActivityMessageListenerTest {
 
         assertThrows(IllegalStateException.class, () -> listener.processActivity(activity()));
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    void concurrentDuplicateInsert_isTreatedAsAlreadyProcessed() {
+        Recommendation rec = Recommendation.builder().activityId("a1").build();
+        when(repository.existsByActivityId("a1")).thenReturn(false);
+        when(aiService.generateRecommendation(any(Activity.class))).thenReturn(rec);
+        when(repository.save(rec)).thenThrow(new DuplicateKeyException("duplicate activityId"));
+
+        // Must not throw: otherwise RabbitMQ would retry and dead-letter a message that is already done.
+        assertDoesNotThrow(() -> listener.processActivity(activity()));
     }
 }

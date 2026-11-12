@@ -6,10 +6,8 @@ const api = axios.create({
     baseURL: API_URL
 });
 
-// Attach the JWT to every outgoing request. The gateway's
-// JwtAuthenticationFilter validates this and derives X-User-ID itself -
-// the frontend no longer needs to send X-User-ID manually (that was only
-// needed as a fallback in the old Keycloak-sync flow).
+// Attach the JWT to every outgoing request. The gateway validates it and derives the
+// X-User-ID header itself, so the client never sends that header.
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
 

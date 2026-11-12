@@ -107,4 +107,25 @@ class JwtAuthenticationFilterTest {
         run(MockServerHttpRequest.post("/api/users/register"), passedOn);
         assertNotNull(passedOn.get());
     }
+
+    @Test
+    void corsPreflight_isPassedThroughWithoutAToken() {
+        AtomicReference<ServerWebExchange> passedOn = new AtomicReference<>();
+        ServerWebExchange ex = run(MockServerHttpRequest.options("http://localhost:8080/api/activities")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type"), passedOn);
+
+        assertNotNull(passedOn.get());
+        assertNotEquals(HttpStatus.UNAUTHORIZED, ex.getResponse().getStatusCode());
+    }
+
+    @Test
+    void plainOptionsRequest_withoutCorsHeaders_isStillRejected() {
+        AtomicReference<ServerWebExchange> passedOn = new AtomicReference<>();
+        ServerWebExchange ex = run(MockServerHttpRequest.options("http://localhost:8080/api/activities"), passedOn);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getResponse().getStatusCode());
+        assertNull(passedOn.get());
+    }
 }

@@ -20,7 +20,9 @@ import java.util.List;
 public class Recommendation {
     @Id
     private String id;
-    @Indexed
+    // Unique: one recommendation per activity. This is what makes the consumer safe against
+    // concurrent redeliveries - the exists-check alone cannot prevent a race.
+    @Indexed(unique = true)
     private String activityId;
     @Indexed
     private String userId;

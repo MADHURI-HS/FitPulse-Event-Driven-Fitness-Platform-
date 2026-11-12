@@ -12,7 +12,7 @@
 	<artifactId>configserver</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>configserver</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Spring Cloud Config Server providing centralized configuration to the FitPulse services</description>
 	<url/>
 	<licenses>
 		<license/>

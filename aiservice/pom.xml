@@ -12,7 +12,7 @@
 	<artifactId>aiservice</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>aiservice</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Consumes activity events from RabbitMQ and generates recommendations with Google Gemini</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>23</java.version>
+		<lombok.version>1.18.46</lombok.version>
+		<byte-buddy.version>1.18.8</byte-buddy.version>
 		<spring-cloud.version>2024.0.0</spring-cloud.version>
 	</properties>
 	<dependencies>

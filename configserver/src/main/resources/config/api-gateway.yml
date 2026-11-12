@@ -27,8 +27,6 @@ eureka:
     serviceUrl:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
 
-# Shared HMAC secret used to validate JWTs issued by userservice.
-# Must match user-service.yml's jwt.secret exactly.
-# In production, inject this via an environment variable instead of committing it here.
-jwt:
-  secret: ${JWT_SECRET}
+# jwt.secret is intentionally not defined here: the gateway reads it from its own JWT_SECRET
+# environment variable (identical to userservice's). Secrets must not live in this file because
+# the Config Server resolves placeholders and serves the result over HTTP.

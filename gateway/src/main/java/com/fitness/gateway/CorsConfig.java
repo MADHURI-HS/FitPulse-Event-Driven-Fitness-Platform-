@@ -2,6 +2,8 @@ package com.fitness.gateway;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.CorsWebFilter;
@@ -11,16 +13,16 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * CORS only. Previously this lived alongside Spring Security's
- * SecurityWebFilterChain (@EnableWebFluxSecurity + oauth2ResourceServer).
- * Auth enforcement has moved to JwtAuthenticationFilter, a plain WebFilter,
- * so the gateway no longer depends on Spring Security at all - one fewer
- * moving part, and no OAuth2/Keycloak-specific config to maintain.
+ * CORS for the browser frontend (the Vite dev server on http://localhost:5173).
+ * Authentication is handled separately by JwtAuthenticationFilter.
  */
 @Configuration
 public class CorsConfig {
 
+    // Must run before JwtAuthenticationFilter so that preflight requests are answered, and so that
+    // 401 responses also carry CORS headers (otherwise the browser reports an opaque network error).
     @Bean
+    @Order(Ordered.HIGHEST_PRECEDENCE)
     public CorsWebFilter corsWebFilter() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of("http://localhost:5173"));

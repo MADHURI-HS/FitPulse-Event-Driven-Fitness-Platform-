@@ -12,7 +12,7 @@
 	<artifactId>activityservice</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>activityservice</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Records fitness activities in MongoDB and publishes them to RabbitMQ for AI analysis</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>23</java.version>
+		<lombok.version>1.18.46</lombok.version>
+		<byte-buddy.version>1.18.8</byte-buddy.version>
 		<spring-cloud.version>2024.0.0</spring-cloud.version>
 	</properties>
 	<dependencies>

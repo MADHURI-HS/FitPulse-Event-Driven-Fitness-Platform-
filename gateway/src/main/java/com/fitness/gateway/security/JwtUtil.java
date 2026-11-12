@@ -11,12 +11,9 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Validates JWTs issued by userservice. Previously the gateway validated
- * tokens against Keycloak's public JWK set (spring-boot-starter-oauth2-resource-server,
- * jwk-set-uri pointing at the Keycloak realm). Now there's no external
- * identity provider - both this class and userservice's JwtUtil share the
- * same HMAC secret (jwt.secret, injected via the config server), so the
- * gateway can verify a token's signature itself with no network call.
+ * Validates the HMAC-signed JWTs issued by userservice. Both services share the same secret
+ * (the JWT_SECRET environment variable), so the gateway verifies a token's signature locally
+ * with no network call.
  */
 @Component
 public class JwtUtil {
