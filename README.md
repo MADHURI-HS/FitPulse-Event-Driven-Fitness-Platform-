@@ -2,7 +2,6 @@
 
 # FitPulse — Event-Driven Fitness Platform
 
-
 A **microservices-based fitness tracking application** built with Spring Boot, Spring Cloud, React, MongoDB, MySQL, RabbitMQ, and Google Gemini AI.
 
 The application provides JWT-based authentication, fitness activity tracking, and AI-powered fitness recommendations using an event-driven architecture.
@@ -25,7 +24,7 @@ The application provides JWT-based authentication, fitness activity tracking, an
 * Per-user authorization: users can only read their own activities, recommendations and profile
 * RabbitMQ listener retries with exponential backoff, then dead-letters failed messages to `activity.dlq`
 * Idempotent AI consumer (a unique index on `activityId` plus duplicate-key handling means a redelivered or concurrently delivered message never creates a duplicate recommendation)
-* Request validation and consistent JSON error responses (400 / 403 / 404 / 503)
+* Request validation and JSON error responses (400 / 403 / 404 / 503)
 * One-command run with Docker Compose, plus unit tests and a GitHub Actions CI pipeline
 
 ---
@@ -130,6 +129,7 @@ FitPulse/
 ├── activityservice/
 ├── aiservice/
 ├── fitness-app-frontend/
+├── docs/
 ├── docker-compose.yml
 ├── .env.example
 ├── .github/workflows/ci.yml
@@ -148,7 +148,8 @@ FitPulse/
 | POST   | `/api/activities`                    | Create activity       |
 | GET    | `/api/activities`                    | Get user activities   |
 | GET    | `/api/activities/{id}`               | Get activity          |
-| GET    | `/api/recommendations/activity/{id}` | Get AI recommendation |
+| GET    | `/api/recommendations/activity/{id}` | Get AI recommendation for an activity |
+| GET    | `/api/recommendations/user/{id}`     | Get all of a user's recommendations |
 
 All protected APIs are accessed through the API Gateway using:
 
@@ -166,8 +167,11 @@ Requires Docker only.
 
 ```bash
 cp .env.example .env        # then edit JWT_SECRET, DB_PASSWORD, GEMINI_API_URL, GEMINI_API_KEY
+openssl rand -base64 48     # one way to generate a strong JWT_SECRET
 docker compose up --build
 ```
+
+Compose refuses to start if `JWT_SECRET` or `DB_PASSWORD` is missing, so no service ever runs with a blank secret.
 
 This starts MySQL (host port `3307`), MongoDB, RabbitMQ (management UI on `:15672`), Eureka, the Config Server (reachable only inside the Docker network), the three services and the gateway on `:8080`. Services that start before the Config Server is ready exit and are restarted automatically by Docker.
 
@@ -176,12 +180,14 @@ Then run the frontend:
 ```bash
 cd fitness-app-frontend
 npm install
-npm run dev
+npm run dev      # http://localhost:5173
 ```
+
+The gateway's CORS configuration allows the frontend origin `http://localhost:5173`, so open the app on that address. The RabbitMQ management UI is at http://localhost:15672 (`guest` / `guest`).
 
 ### Option B — Run locally
 
-Prerequisites: JDK 23, Node.js, MySQL 8, MongoDB, RabbitMQ, a Gemini API key.
+Prerequisites: JDK 23 or newer, Node.js, MySQL 8, MongoDB, RabbitMQ, a Gemini API key.
 
 Secrets are read from each service's **own** environment, never from the Config Server (which serves its files over HTTP):
 
@@ -209,10 +215,10 @@ cd aiservice && ./mvnw test
 
 Unit tests (JUnit 5 + Mockito) cover:
 
-* Gateway JWT filter — missing, malformed, expired and wrongly-signed tokens are rejected with 401; a valid token forwards `X-User-ID`; a spoofed `X-User-ID` header is overwritten
+* Gateway JWT filter — missing, malformed, expired and wrongly-signed tokens are rejected with 401; a valid token forwards `X-User-ID`; a spoofed `X-User-ID` header is overwritten; CORS preflight requests pass through without a token (and the CORS filter is guaranteed to run before the JWT filter)
 * User service — registration hashes the password with BCrypt, duplicate emails are rejected, login succeeds/fails correctly
 * Activity service — validates the user, saves and publishes the event, survives a broker outage, enforces ownership
-* AI service — Gemini response parsing with fallback on malformed output, idempotent message listener, failures propagate so RabbitMQ retries and dead-letters, ownership checks on recommendations
+* AI service — Gemini response parsing with fallback on malformed output, idempotent message listener (including a concurrent duplicate insert), failures propagate so RabbitMQ retries and dead-letters, ownership checks on recommendations
 
 CI (GitHub Actions) runs these tests and builds the frontend on every push and pull request.
 
@@ -231,4 +237,16 @@ CI (GitHub Actions) runs these tests and builds the frontend on every push and p
 * Services trust the gateway's `X-User-ID` header, so they must not be exposed publicly (in Docker Compose only the gateway and infrastructure ports are meant to be used).
 * RabbitMQ uses the default `guest` account, which is fine for local development only.
 * The Config Server has no authentication. Docker Compose keeps it off the host network; a real deployment would put it behind authentication (and use encrypted properties for anything sensitive).
+* JWTs expire after 24 hours; there is no refresh-token flow or revocation, and the frontend keeps the token in `localStorage`.
+* The application services expose no health or metrics endpoints yet (no Spring Boot Actuator), and `GET /api/activities` is not paginated.
 * The frontend is not containerized, and there are no integration tests against real databases yet.
+
+---
+
+## 🎬 Failure handling demo
+
+When the Gemini call fails (here: API quota exhausted), the activity is still saved, the AI
+message is retried with backoff, and then dead-lettered to `activity.dlq` instead of being lost.
+The `x-death` header records where it failed (`activity.queue`, reason `rejected`):
+
+![A dead-lettered activity message in RabbitMQ](docs/dlq-demo.png)
